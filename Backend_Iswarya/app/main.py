@@ -2,11 +2,14 @@ import os
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 # Import your database engine and declarative base for table auto-creation
 from app.database import engine
+from app.bootstrap import ensure_reference_data
 from app.models.user import Base  # Adjust path if your models base is located elsewhere
 from app.models import alert  # noqa: F401 - <-- ADDED: Registers the Alert model for table creation
 
@@ -22,6 +25,7 @@ async def lifespan(app: FastAPI):
     # Automatically creates database tables on application startup
     # if they do not already exist in PostgreSQL.
     Base.metadata.create_all(bind=engine)
+    ensure_reference_data(engine)
     yield
     # Shutdown logic (if any) can go here
 
@@ -78,9 +82,9 @@ def health_check():
 @app.get("/", include_in_schema=False)
 def root():
     """
-    The bare service URL has no page of its own, so send browsers to the API docs.
+    The bare service URL opens the web app's login page.
     """
-    return RedirectResponse(url="/docs")
+    return RedirectResponse(url="/Login.html")
 
 
 # ==========================================
@@ -101,3 +105,12 @@ app.include_router(route_analysis.router, prefix="/api/v1/route", tags=["Route A
 
 # 5. Alert Service Routes (Milestone 3: Automated congestion and anomaly alerts)
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Alerts"])  # <-- ADDED
+
+
+# ==========================================
+# Web Frontend (Intern 4 pages, served from the same origin as the API)
+# ==========================================
+# Mounted last so every API, /docs and /health route above takes precedence.
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "Front-end"
+if FRONTEND_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR), name="frontend")
