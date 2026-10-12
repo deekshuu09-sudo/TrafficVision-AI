@@ -79,7 +79,7 @@ def health_check():
     return {"status": "ok"}
 
 
-@app.get("/", include_in_schema=False)
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 def root():
     """
     The bare service URL opens the web app's login page.
