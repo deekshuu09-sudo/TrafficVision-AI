@@ -9,7 +9,7 @@
 window.__TRAFFICVISION_CONFIG__ = {
     // Leave null or set to custom live gateway URL (e.g. "https://api.trafficvision.ai")
     // If null, api.js automatically defaults to origin or local development fallbacks.
-    GATEWAY_URL: null,
+    GATEWAY_URL: "https://trafficvision-ai-i8e2.onrender.com",
 
     // Optional discrete service overrides (leave null to use unified Gateway)
     BASE_URL: null,         // e.g. "https://api.trafficvision.ai/api/v1"

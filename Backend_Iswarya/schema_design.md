@@ -1,5 +1,6 @@
 Table: USERS
 ----------------
+
 id (Primary Key)
 name (String)
 email (String, Unique)

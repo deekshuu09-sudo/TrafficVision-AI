@@ -9,11 +9,11 @@ services:
       POSTGRES_PASSWORD: 12345678
       POSTGRES_DB: traffic_auth
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d traffic_auth"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d traffic_auth']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -25,10 +25,10 @@ services:
     container_name: trafficvision-redis-dev
     restart: unless-stopped
     ports:
-      - "6379:6379"
-    command: ["redis-server", "--appendonly", "no"]
+      - '6379:6379'
+    command: ['redis-server', '--appendonly', 'no']
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -52,7 +52,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - '8000:8000'
     volumes:
       - .:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

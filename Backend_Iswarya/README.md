@@ -1,12 +1,13 @@
 ## TrafficVision AI API Documentation
 
 ### 1. Authentication Endpoints (`/api/v1/auth`)
-* `POST /register`: Registers a new user with role-based validation (`admin`, `user`, `operator`).
-* `POST /login`: Authenticates user credentials and returns a JWT `access_token`.
+
+- `POST /register`: Registers a new user with role-based validation (`admin`, `user`, `operator`).
+- `POST /login`: Authenticates user credentials and returns a JWT `access_token`.
 
 ### 2. Route Analysis Endpoints (`/api/v1/route`)
-* `GET /api/v1/route/alternate`: Requires Bearer token authorization. Takes `origin` and `destination` coordinates (`lat,lng`) and returns ranked alternative paths integrated with ML congestion predictions.
 
+- `GET /api/v1/route/alternate`: Requires Bearer token authorization. Takes `origin` and `destination` coordinates (`lat,lng`) and returns ranked alternative paths integrated with ML congestion predictions.
 
 During this milestone, we successfully designed, built, and integrated the core backend architecture and machine learning pipeline for the TrafficVision AI system.
 

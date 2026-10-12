@@ -47,34 +47,22 @@ class AnomalyDetector:
         )
 
         # Individual historical deviations
-        vehicle_deviation = (
-            (
-                df["vehicle_count"]
-                - df["expected_vehicle_count"]
-            ).abs()
-            / df["expected_vehicle_count"].replace(0, np.nan)
-        )
+        vehicle_deviation = (df["vehicle_count"] - df["expected_vehicle_count"]).abs() / df[
+            "expected_vehicle_count"
+        ].replace(0, np.nan)
 
         speed_deviation = (
-            (
-                df["expected_speed_kmph"]
-                - df["avg_speed_kmph"]
-            )
+            (df["expected_speed_kmph"] - df["avg_speed_kmph"])
             / df["expected_speed_kmph"].replace(0, np.nan)
         ).clip(lower=0)
 
         density_deviation = (
-            (
-                df["traffic_density_vehicles_per_km"]
-                - df["expected_density"]
-            )
+            (df["traffic_density_vehicles_per_km"] - df["expected_density"])
             / df["expected_density"].replace(0, np.nan)
         ).clip(lower=0)
 
         combined_deviation = (
-            0.40 * vehicle_deviation
-            + 0.30 * speed_deviation
-            + 0.30 * density_deviation
+            0.40 * vehicle_deviation + 0.30 * speed_deviation + 0.30 * density_deviation
         )
 
         self.anomaly_threshold = combined_deviation.quantile(0.95)
@@ -132,22 +120,14 @@ class AnomalyDetector:
                 "reason": "No historical baseline available",
             }
 
-        expected_vehicle = float(
-            baseline["expected_vehicle_count"]
-        )
+        expected_vehicle = float(baseline["expected_vehicle_count"])
 
-        expected_speed = float(
-            baseline["expected_speed_kmph"]
-        )
+        expected_speed = float(baseline["expected_speed_kmph"])
 
-        expected_density = float(
-            baseline["expected_density"]
-        )
+        expected_density = float(baseline["expected_density"])
 
         # Calculate deviations
-        vehicle_deviation = abs(
-            vehicle_count - expected_vehicle
-        ) / max(expected_vehicle, 1e-9)
+        vehicle_deviation = abs(vehicle_count - expected_vehicle) / max(expected_vehicle, 1e-9)
 
         speed_deviation = max(
             0,
@@ -160,11 +140,7 @@ class AnomalyDetector:
         ) / max(expected_density, 1e-9)
 
         # Combined weighted anomaly score
-        anomaly_score = (
-            0.40 * vehicle_deviation
-            + 0.30 * speed_deviation
-            + 0.30 * density_deviation
-        )
+        anomaly_score = 0.40 * vehicle_deviation + 0.30 * speed_deviation + 0.30 * density_deviation
 
         # Count independently strong signals
         strong_signal_count = sum(
@@ -176,10 +152,7 @@ class AnomalyDetector:
         )
 
         # Classification
-        if (
-            anomaly_score >= self.incident_threshold
-            and strong_signal_count >= 2
-        ):
+        if anomaly_score >= self.incident_threshold and strong_signal_count >= 2:
             anomaly_class = "possible_incident"
 
         elif anomaly_score >= self.anomaly_threshold:

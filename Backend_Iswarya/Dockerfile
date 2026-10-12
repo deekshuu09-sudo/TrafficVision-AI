@@ -1,5 +1,6 @@
-# Use official lightweight Python image
-FROM python:3.10-slim
+# Use official lightweight Python image. 3.12 matches the AI Engine and is needed for
+# scikit-learn 1.9.0, the version model-v1.joblib was trained with (DEF-M2-008).
+FROM python:3.12-slim
 
 # Set working directory inside the container
 WORKDIR /app
