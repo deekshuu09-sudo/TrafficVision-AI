@@ -1,7 +1,7 @@
 import os
 
 from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from app.database import engine
 from app.bootstrap import ensure_reference_data
 from app.subapps import mount_services, prepare_analytics_data
+from app.services.traffic_service import DatabaseUnavailable
 from app.models.user import Base  # Adjust path if your models base is located elsewhere
 from app.models import alert  # noqa: F401 - <-- ADDED: Registers the Alert model for table creation
 
@@ -68,6 +69,12 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all HTTP methods (GET, POST, OPTIONS, PUT, DELETE)
     allow_headers=["*"],  # Allows all headers
 )
+
+
+@app.exception_handler(DatabaseUnavailable)
+async def database_unavailable_handler(request, exc):
+    # An unreachable traffic database is an outage, not sample data (DEF-M4-022).
+    return JSONResponse(status_code=503, content={"detail": "Traffic database unavailable"})
 
 
 # ==========================================

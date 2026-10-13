@@ -25,51 +25,12 @@ def get_postgres_connection():
         return None
 
 
-# Safe fallback sample data
-SAMPLE_FALLBACK_DATA = [
-    {
-        "road_id": "R001",
-        "vehicle_count": 28,
-        "density": 5.6,
-        "congestion_level": "Low",
-        "reading_timestamp": "2026-08-26T22:00:00",
-    },
-    {
-        "road_id": "R002",
-        "vehicle_count": 27,
-        "density": 6.75,
-        "congestion_level": "Low",
-        "reading_timestamp": "2026-08-26T22:00:00",
-    },
-    {
-        "road_id": "R003",
-        "vehicle_count": 26,
-        "density": 7.43,
-        "congestion_level": "Low",
-        "reading_timestamp": "2026-08-26T22:00:00",
-    },
-    {
-        "road_id": "R004",
-        "vehicle_count": 1,
-        "density": 0.22,
-        "congestion_level": "Low",
-        "reading_timestamp": "2026-08-26T22:00:00",
-    },
-    {
-        "road_id": "R005",
-        "vehicle_count": 34,
-        "density": 11.33,
-        "congestion_level": "Medium",
-        "reading_timestamp": "2026-08-26T22:00:00",
-    },
-    {
-        "road_id": "R006",
-        "vehicle_count": 55,
-        "density": 22.4,
-        "congestion_level": "High",
-        "reading_timestamp": "2026-08-26T22:00:00",
-    },
-]
+class DatabaseUnavailable(Exception):
+    """The traffic database could not be queried. Mapped to HTTP 503 in app/main.py.
+
+    These endpoints used to answer with built-in sample rows instead, which made a missing
+    or unreachable database look healthy (DEF-M4-022).
+    """
 
 
 def _parse_timestamp(value, field_name):
@@ -97,41 +58,10 @@ def _validate_time_window(start_time, end_time):
     return start, end
 
 
-def _filter_fallback_history(road_id, start_time, end_time, limit):
-    start, end = _validate_time_window(start_time, end_time)
-    rows = SAMPLE_FALLBACK_DATA
-    if road_id:
-        rows = [row for row in rows if row["road_id"].upper() == road_id.upper()]
-
-    filtered = []
-    for row in rows:
-        stamp_value = row.get("reading_timestamp") or row.get("updated_at")
-        stamp = _parse_timestamp(stamp_value, "reading_timestamp")
-        if start is not None and stamp < start:
-            continue
-        if end is not None and stamp > end:
-            continue
-        formatted = dict(row)
-        formatted["reading_timestamp"] = _format_timestamp(stamp)
-        formatted["updated_at"] = _format_timestamp(stamp)
-        filtered.append(formatted)
-    return filtered[:limit]
-
-
-def _fallback_live_traffic():
-    return [
-        {
-            **row,
-            "updated_at": _format_timestamp(row["reading_timestamp"]),
-        }
-        for row in SAMPLE_FALLBACK_DATA
-    ]
-
-
 def get_live_traffic():
     conn = get_postgres_connection()
     if not conn:
-        return _fallback_live_traffic()
+        raise DatabaseUnavailable()
 
     try:
         with conn.cursor() as cursor:
@@ -156,8 +86,8 @@ def get_live_traffic():
                 }
                 for r in rows
             ]
-    except Exception:
-        return _fallback_live_traffic()
+    except Exception as exc:
+        raise DatabaseUnavailable() from exc
     finally:
         try:
             conn.close()
@@ -168,19 +98,7 @@ def get_live_traffic():
 def get_road_traffic(road_id):
     conn = get_postgres_connection()
     if not conn:
-        for item in SAMPLE_FALLBACK_DATA:
-            if item["road_id"].upper() == road_id.upper():
-                sample = {
-                    **item,
-                    "updated_at": _format_timestamp(item["reading_timestamp"]),
-                }
-                return {
-                    "road_id": item["road_id"],
-                    "name": f"Road {item['road_id']}",
-                    "congestion_level": item["congestion_level"],
-                    "history": [sample],
-                }
-        return None
+        raise DatabaseUnavailable()
 
     try:
         with conn.cursor() as cursor:
@@ -211,16 +129,8 @@ def get_road_traffic(road_id):
                 "congestion_level": rows[0][2],
                 "history": history,
             }
-    except Exception:
-        for item in SAMPLE_FALLBACK_DATA:
-            if item["road_id"].upper() == road_id.upper():
-                return {
-                    "road_id": item["road_id"],
-                    "name": f"Road {item['road_id']}",
-                    "congestion_level": item["congestion_level"],
-                    "history": [item],
-                }
-        return None
+    except Exception as exc:
+        raise DatabaseUnavailable() from exc
     finally:
         try:
             conn.close()
@@ -231,15 +141,7 @@ def get_road_traffic(road_id):
 def get_density_summary():
     conn = get_postgres_connection()
     if not conn:
-        return {
-            "total_roads": len(SAMPLE_FALLBACK_DATA),
-            "average_density": 7.3,
-            "maximum_density": 22.4,
-            "minimum_density": 0.22,
-            "high_congestion_roads": 1,
-            "severe_congestion_roads": 0,
-            "total_vehicle_count": sum(i["vehicle_count"] for i in SAMPLE_FALLBACK_DATA),
-        }
+        raise DatabaseUnavailable()
 
     try:
         with conn.cursor() as cursor:
@@ -268,16 +170,8 @@ def get_density_summary():
                 "severe_congestion_roads": row[5],
                 "total_vehicle_count": row[6],
             }
-    except Exception:
-        return {
-            "total_roads": len(SAMPLE_FALLBACK_DATA),
-            "average_density": 7.3,
-            "maximum_density": 22.4,
-            "minimum_density": 0.22,
-            "high_congestion_roads": 1,
-            "severe_congestion_roads": 0,
-            "total_vehicle_count": sum(i["vehicle_count"] for i in SAMPLE_FALLBACK_DATA),
-        }
+    except Exception as exc:
+        raise DatabaseUnavailable() from exc
     finally:
         try:
             conn.close()
@@ -292,7 +186,7 @@ def get_traffic_history(road_id=None, start_time=None, end_time=None, limit=500)
 
     conn = get_postgres_connection()
     if not conn:
-        return _filter_fallback_history(road_id, start_time, end_time, limit)
+        raise DatabaseUnavailable()
 
     try:
         with conn.cursor() as cursor:
@@ -324,8 +218,8 @@ def get_traffic_history(road_id=None, start_time=None, end_time=None, limit=500)
                 }
                 for r in rows
             ]
-    except Exception:
-        return _filter_fallback_history(road_id, start_time, end_time, limit)
+    except Exception as exc:
+        raise DatabaseUnavailable() from exc
     finally:
         try:
             conn.close()
@@ -340,34 +234,7 @@ def get_traffic_aggregate(road_id=None, start_time=None, end_time=None, interval
 
     conn = get_postgres_connection()
     if not conn:
-        rows = _filter_fallback_history(road_id, start_time, end_time, 5000)
-        grouped = {}
-        for row in rows:
-            stamp = _parse_timestamp(
-                row.get("reading_timestamp") or row.get("updated_at"),
-                "reading_timestamp",
-            )
-            period = (
-                stamp.replace(minute=0, second=0, microsecond=0)
-                if interval == "hour"
-                else stamp.replace(hour=0, minute=0, second=0, microsecond=0)
-            )
-            key = (row["road_id"], period)
-            grouped.setdefault(key, []).append(row)
-        return [
-            {
-                "road_id": grouped_rows[0]["road_id"],
-                "period_start": period.isoformat(),
-                "total_readings": len(grouped_rows),
-                "avg_vehicle_count": round(
-                    sum(item["vehicle_count"] for item in grouped_rows) / len(grouped_rows), 2
-                ),
-                "avg_density": round(
-                    sum(item["density"] for item in grouped_rows) / len(grouped_rows), 2
-                ),
-            }
-            for (road_id, period), grouped_rows in sorted(grouped.items())
-        ]
+        raise DatabaseUnavailable()
 
     try:
         with conn.cursor() as cursor:
@@ -405,18 +272,8 @@ def get_traffic_aggregate(road_id=None, start_time=None, end_time=None, interval
                 }
                 for row in rows
             ]
-    except Exception:
-        rows = _filter_fallback_history(road_id, start_time, end_time, 5000)
-        return [
-            {
-                "road_id": row["road_id"],
-                "period_start": row.get("reading_timestamp") or row.get("updated_at"),
-                "avg_vehicle_count": float(row["vehicle_count"]),
-                "avg_density": float(row["density"]),
-                "total_readings": 1,
-            }
-            for row in rows
-        ]
+    except Exception as exc:
+        raise DatabaseUnavailable() from exc
     finally:
         try:
             conn.close()
@@ -427,12 +284,7 @@ def get_traffic_aggregate(road_id=None, start_time=None, end_time=None, interval
 def get_road_condition(road_id: str):
     conn = get_postgres_connection()
     if not conn:
-        return {
-            "road_id": road_id,
-            "road_name": f"Road {road_id}",
-            "surface_condition": "Good",
-            "status": "Clear",
-        }
+        raise DatabaseUnavailable()
 
     try:
         with conn.cursor() as cursor:
@@ -464,13 +316,8 @@ def get_road_condition(road_id: str):
                 "description": row[5],
                 "source": row[6],
             }
-    except Exception:
-        return {
-            "road_id": road_id,
-            "road_name": f"Road {road_id}",
-            "surface_condition": "Good",
-            "status": "Clear",
-        }
+    except Exception as exc:
+        raise DatabaseUnavailable() from exc
     finally:
         try:
             conn.close()
