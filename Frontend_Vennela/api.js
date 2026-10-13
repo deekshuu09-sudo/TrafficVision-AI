@@ -31,10 +31,10 @@ const API_CONFIG = {
                 return 'http://127.0.0.1:8000';
             }
 
-            // When deployed to a public cloud domain (e.g. Vercel, Netlify, cloud VM), use origin:
-            return origin;
+            // When deployed to a public cloud domain (e.g. Vercel, Netlify, cloud VM), use live Gateway:
+            return 'https://trafficvision-ai-i8e2.onrender.com';
         }
-        return 'http://127.0.0.1:8000';
+        return 'https://trafficvision-ai-i8e2.onrender.com';
     },
 
     get BASE_URL() {

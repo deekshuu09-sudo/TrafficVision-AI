@@ -31,6 +31,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/api/v1/:path*", "destination": "https://trafficvision-ai-i8e2.onrender.com/api/v1/:path*" },
     { "source": "/", "destination": "/Login.html" },
     { "source": "/login", "destination": "/Login.html" },
     { "source": "/admin", "destination": "/admin dashboard.html" },

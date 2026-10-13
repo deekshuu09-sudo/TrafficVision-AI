@@ -21,6 +21,7 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>TrafficVision AI - Authentication</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="config.js"></script>
     <script src="api.js"></script>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=JetBrains+Mono:wght@500;600&amp;display=swap"
@@ -898,17 +899,19 @@
 
                 try {
                     const data = await authAPI.login(email, password);
+                    // Determine effective role: respect elevated backend role if present, else align with selected role tab
+                    const effectiveRole = (data.role && data.role !== 'PUBLIC') ? data.role : currentRole.toUpperCase();
                     AuthManager.setSession({
                         access_token: data.access_token,
                         refresh_token: data.refresh_token,
-                        role: data.role || currentRole.toUpperCase(),
+                        role: effectiveRole,
                         name: data.username || data.name || email.split('@')[0]
                     });
-                    window.location.href = AuthManager.getDashboardUrl(data.role || currentRole);
+                    window.location.href = AuthManager.getDashboardUrl(effectiveRole);
                 } catch (err) {
                     console.warn('Backend login notice:', err.message);
                     if (err.message.includes('Failed to fetch') || err.message.includes('Cannot reach') || err.message.includes('NetworkError') || err.message.toLowerCase().includes('timeout') || err.name === 'AbortError') {
-                        errorTextSpan.textContent = `Server unreachable at ${API_CONFIG.BASE_URL}. Please ensure backend is running on port 8000.`;
+                        errorTextSpan.textContent = `Server unreachable at ${API_CONFIG.BASE_URL}. Please check your internet connection or verify backend status.`;
                         errorMessage.classList.remove('hidden');
                         submitBtn.disabled = false;
                         submitText.textContent = 'Initialize Session';
