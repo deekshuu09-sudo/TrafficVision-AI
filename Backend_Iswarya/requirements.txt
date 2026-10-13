@@ -14,3 +14,5 @@ pandas
 scikit-learn==1.9.0
 passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
+# Used by src/m3_day2_congestion_watcher.py and automate_accident_alerts.py
+requests
