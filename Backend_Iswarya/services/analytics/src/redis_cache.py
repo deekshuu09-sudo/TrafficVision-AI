@@ -1,9 +1,20 @@
 import json
 import os
 import redis
+from redis.backoff import NoBackoff
+from redis.retry import Retry
 
 # Redis key used for the complete live traffic response
 LIVE_TRAFFIC_KEY = "traffic:live"
+
+# The cache is optional: an unreachable Redis must fail fast instead of stalling every
+# request. redis-py retries with backoff by default, which took ~15 s per call.
+FAIL_FAST = {
+    "decode_responses": True,
+    "socket_connect_timeout": 0.5,
+    "socket_timeout": 0.5,
+    "retry": Retry(NoBackoff(), 0),
+}
 
 
 def get_redis_client():
@@ -14,18 +25,13 @@ def get_redis_client():
 
     redis_url = os.getenv("REDIS_URL")
     if redis_url:
-        return redis.from_url(
-            redis_url, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5
-        )
+        return redis.from_url(redis_url, **FAIL_FAST)
 
-    # Short timeouts: an unreachable Redis must not stall every request (cache is optional).
     return redis.Redis(
         host=os.getenv("REDIS_HOST", "localhost"),
         port=int(os.getenv("REDIS_PORT", "6379")),
         db=int(os.getenv("REDIS_DB", "0")),
-        decode_responses=True,
-        socket_connect_timeout=0.5,
-        socket_timeout=0.5,
+        **FAIL_FAST,
     )
 
 
