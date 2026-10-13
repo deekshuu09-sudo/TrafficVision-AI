@@ -17,6 +17,8 @@ if str(SRC_DIR) not in sys.path:
 
 from anomaly_detector import AnomalyDetector
 from recommendation_engine import RecommendationEngine
+from predict_service import get_congestion_prediction  # M4: trained model + DB features
+
 app = FastAPI(
     title="TrafficVision AI Engine",
     description="Traffic congestion prediction service",
@@ -215,55 +217,26 @@ async def predict_live_traffic():
     "/api/v1/predict/congestion",
     response_model=CongestionResponse
 )
-async def predict_congestion_by_road(
-    road_id: str = Query(
-        ...,
-        description="Road ID such as R001"
-    )
+def predict_congestion_by_road(
+    road_id: str = Query(..., description="Road ID such as R001")
 ):
+    """Predict congestion using the packaged trained model and DB features (M4)."""
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(TRAFFIC_API_URL)
-            response.raise_for_status()
-
-        traffic_data = response.json()
-
-    except httpx.HTTPError:
+        result = get_congestion_prediction(road_id)
+    except Exception as exc:
         raise HTTPException(
             status_code=503,
-            detail="Traffic Monitoring service is unavailable",
-        )
+            detail="Trained-model prediction service is unavailable",
+        ) from exc
 
-    # Find requested road
-    road = next(
-        (
-            item
-            for item in traffic_data
-            if item["road_id"] == road_id
-        ),
-        None,
-    )
-
-    if road is None:
+    if result is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Road {road_id} not found",
+            detail=f"No traffic reading found for road {road_id}",
         )
 
-    # Apply rule-based prediction
-    predicted_level, reason = predict_congestion(
-        vehicle_count=road["vehicle_count"],
-        density=road["density"],
-        avg_speed_kmph=0,
-    )
-
-    return CongestionResponse(
-        road_id=road["road_id"],
-        predicted_level=predicted_level,
-        confidence=0.85,
-        generated_by="heuristic-v0",
-    )
+    return CongestionResponse(**result)
 # ============================================================
 # M3 - AI Anomaly Detection
 # GET /api/v1/ai/anomalies

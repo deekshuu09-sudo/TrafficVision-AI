@@ -1,0 +1,19 @@
+{
+  "model_name": "TrafficVision AI Congestion Classifier",
+  "model_version": "model-v1",
+  "artifact": "model-v1.joblib",
+  "model_type": "RandomForestClassifier",
+  "pipeline_type": "sklearn Pipeline",
+  "framework": "scikit-learn",
+  "framework_version": "1.9.0",
+  "classes": [
+    "High",
+    "Low",
+    "Medium",
+    "Severe"
+  ],
+  "n_estimators": 300,
+  "class_weight": "balanced",
+  "random_state": 42,
+  "artifact_sha256": "670cf49ec273648089991794669f899352d39297128c72cf0124141d8c541f6e"
+}

@@ -33,6 +33,10 @@ if not MODEL_PATH.exists():
 
 model = joblib.load(MODEL_PATH)
 
+# Optimize single-row inference without modifying the saved model.
+if hasattr(model, "named_steps") and "model" in model.named_steps:
+    model.named_steps["model"].set_params(n_jobs=1)
+
 
 # ============================================================
 # RESPONSE MODELS
