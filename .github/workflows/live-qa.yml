@@ -1,0 +1,67 @@
+# Milestone 4 Days 3-6: run the live-system QA suites against production from GitHub's
+# network (Actions -> Live QA -> Run workflow). The report appears in the run summary and as
+# an artifact. Scripts: QA/milestone4 (same as the Team-1 QA repo).
+
+name: Live QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Which suite to run
+        type: choice
+        default: final-regression
+        options:
+          - smoke # Day 3
+          - full-system # Day 4
+          - performance # Day 5
+          - final-regression # Day 6 (all suites + stability window + sign-off)
+      stability_minutes:
+        description: Day 6 stability window (minutes)
+        default: '10'
+
+jobs:
+  live-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BACKEND_URL: https://trafficvision-ai-i8e2.onrender.com
+      WEB_URL: https://trafficvision-ai-i8e2.onrender.com
+      ANALYTICS_URL: https://trafficvision-ai-i8e2.onrender.com/analytics
+      AI_URL: https://trafficvision-ai-i8e2.onrender.com/ai-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Selenium (Chrome is preinstalled on the runner)
+        run: pip install selenium
+      - name: Warm the free-tier service
+        run: |
+          for path in /health /analytics/ /ai-engine/health; do
+            curl -s -m 120 -o /dev/null -w "$path %{http_code}\n" "$BACKEND_URL$path"
+          done
+      - name: Run suite
+        run: |
+          mkdir -p qa-out
+          case "${{ inputs.suite }}" in
+            smoke)
+              python QA/milestone4/day3/smoke_test_live.py --report qa-out/report.md --json qa-out/smoke_results.json ;;
+            full-system)
+              python QA/milestone4/day4/full_system_test.py --report qa-out/report.md --json qa-out/full_system_results.json ;;
+            performance)
+              python QA/milestone4/day5/performance_check.py --report qa-out/report.md --json qa-out/performance_results.json ;;
+            final-regression)
+              python QA/milestone4/day6/final_regression.py --report qa-out/report.md \
+                --stability-minutes "${{ inputs.stability_minutes }}" ;;
+          esac
+      - name: Report in the run summary
+        if: always()
+        run: cat qa-out/report.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-qa-${{ inputs.suite }}
+          path: |
+            qa-out
+            QA/milestone4/day6/*.json

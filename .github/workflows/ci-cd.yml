@@ -1,0 +1,130 @@
+# TrafficVision AI — CI/CD for the production service (Milestone 4, Intern 5).
+#
+# Production is one Render web service, https://trafficvision-ai-i8e2.onrender.com, built
+# from Backend_Iswarya/ (Dockerfile) with auto-deploy on every push to main. It serves the
+# gateway API, Analytics (/analytics), the AI Engine (/ai-engine) and the web app (/).
+#
+#   lint ─┐
+#   test ─┼─> deploy (main only) ─> verify: wait until /version reports this commit,
+#   build ┘                                then smoke-test the live service
+#
+# Optional secret RENDER_DEPLOY_HOOK_URL (Render → service → Settings → Deploy Hook) makes
+# the deploy explicit; without it the job relies on Render's auto-deploy of the push.
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BACKEND_DIR: Backend_Iswarya
+  FRONTEND_DIR: Frontend_Vennela
+  LIVE_URL: https://trafficvision-ai-i8e2.onrender.com
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Python lint (flake8 + Black, same rules as the team repo)
+        run: |
+          pip install flake8 black
+          flake8 --max-line-length 100 --extend-ignore E203,W503 "$BACKEND_DIR/app" "$BACKEND_DIR/tests"
+          black --check -l 100 "$BACKEND_DIR/app" "$BACKEND_DIR/tests"
+      - name: Frontend JavaScript syntax
+        run: |
+          node --check "$FRONTEND_DIR/api.js"
+          node --check "$FRONTEND_DIR/config.js"
+      - name: Served frontend matches Frontend_Vennela
+        run: |
+          for f in "$FRONTEND_DIR"/*.html "$FRONTEND_DIR"/api.js "$FRONTEND_DIR"/config.js; do
+            diff -q --strip-trailing-cr "$f" "$BACKEND_DIR/Front-end/$(basename "$f")" \
+              || { echo "::error::Copy $f into $BACKEND_DIR/Front-end/"; exit 1; }
+          done
+
+  test:
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET_KEY: ci-only-secret-key-not-used-in-production-000000
+      ALERT_SERVICE_KEY: ci-only-alert-key
+      DATABASE_URL: sqlite:///./ci.db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: Backend_Iswarya/requirements.txt
+      - name: Install
+        run: pip install -r "$BACKEND_DIR/requirements.txt" pytest httpx
+      - name: Backend tests
+        working-directory: Backend_Iswarya
+        run: python -m pytest -q -p no:cacheprovider tests
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production image
+        run: docker build -t trafficvision-backend "$BACKEND_DIR"
+      - name: Start the image and probe every part
+        run: |
+          docker run -d --name tv -p 8000:8000 \
+            -e JWT_SECRET_KEY=ci-only-secret -e ALERT_SERVICE_KEY=ci-only \
+            -e DATABASE_URL=sqlite:///./ci.db trafficvision-backend
+          for i in $(seq 1 60); do curl -fs localhost:8000/health && break; sleep 2; done
+          for path in /health /Login.html /analytics/ /ai-engine/health /docs; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "localhost:8000$path")
+            echo "$path -> $code"
+            [ "$code" = 200 ] || { docker logs tv; exit 1; }
+          done
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint, test, build]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Trigger Render deploy (deploy hook if configured, else auto-deploy)
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -n "$HOOK" ]; then curl -fsS -X POST "$HOOK"; echo; else
+            echo "No RENDER_DEPLOY_HOOK_URL secret: relying on Render auto-deploy of $GITHUB_SHA"; fi
+      - name: Wait until the live service runs this commit
+        run: |
+          for i in $(seq 1 60); do
+            live=$(curl -fs "$LIVE_URL/version" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("commit") or "")' 2>/dev/null || true)
+            echo "attempt $i: live commit '${live:-unknown}'"
+            [ "$live" = "$GITHUB_SHA" ] && exit 0
+            sleep 20
+          done
+          echo "::error::$LIVE_URL is not running $GITHUB_SHA after 20 minutes (check the Render deploy log)"
+          exit 1
+      - name: Smoke-test the live service
+        run: |
+          fail=0
+          for path in /health /Login.html /docs /api/v1/traffic/live \
+                      "/api/v1/predict/congestion?road_id=R001" \
+                      /analytics/ "/analytics/analytics/trends?road_id=R001" \
+                      /ai-engine/health "/ai-engine/api/v1/ai/recommendations?road_id=R001"; do
+            code=$(curl -s -o /dev/null -m 60 -w '%{http_code}' "$LIVE_URL$path")
+            echo "$path -> $code"
+            [ "$code" = 200 ] || fail=1
+          done
+          acao=$(curl -s -o /dev/null -D - -H 'Origin: https://evil.example' "$LIVE_URL/health" | grep -i '^access-control-allow-origin' || true)
+          if [ -n "$acao" ]; then echo "::error::CORS allows a foreign origin"; fail=1; fi
+          exit $fail

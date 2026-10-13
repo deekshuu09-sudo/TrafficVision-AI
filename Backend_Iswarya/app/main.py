@@ -88,6 +88,14 @@ def health_check():
     return {"status": "ok"}
 
 
+@app.get("/version", tags=["System Health"])
+def version():
+    """
+    Git commit of the running deploy (set by Render), so CI can wait for its own commit.
+    """
+    return {"commit": os.getenv("RENDER_GIT_COMMIT")}
+
+
 @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 def root():
     """
