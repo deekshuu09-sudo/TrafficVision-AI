@@ -14,13 +14,18 @@ def get_redis_client():
 
     redis_url = os.getenv("REDIS_URL")
     if redis_url:
-        return redis.from_url(redis_url, decode_responses=True)
+        return redis.from_url(
+            redis_url, decode_responses=True, socket_connect_timeout=0.5, socket_timeout=0.5
+        )
 
+    # Short timeouts: an unreachable Redis must not stall every request (cache is optional).
     return redis.Redis(
         host=os.getenv("REDIS_HOST", "localhost"),
         port=int(os.getenv("REDIS_PORT", "6379")),
         db=int(os.getenv("REDIS_DB", "0")),
         decode_responses=True,
+        socket_connect_timeout=0.5,
+        socket_timeout=0.5,
     )
 
 

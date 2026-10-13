@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import os
 import sys
+import threading
+from functools import lru_cache
 from pydantic import BaseModel
 import httpx
 
@@ -286,6 +288,12 @@ def get_anomalies(
     that an actual accident occurred.
     """
 
+    # The result depends only on the bundled historical CSV, so compute it once per road.
+    return list(_compute_anomalies(road_id))
+
+
+@lru_cache(maxsize=None)
+def _compute_anomalies(road_id):
     # Load the historical traffic data
     import pandas as pd
 
@@ -338,7 +346,12 @@ def get_anomalies(
                 }
             )
 
-    return anomalies
+    return tuple(anomalies)
+
+
+# Warm the all-roads result in the background so the first request doesn't pay for it.
+threading.Thread(target=_compute_anomalies, args=(None,), daemon=True).start()
+
 # ============================================================
 # M3 - AI Traffic Recommendations
 # GET /api/v1/ai/recommendations
