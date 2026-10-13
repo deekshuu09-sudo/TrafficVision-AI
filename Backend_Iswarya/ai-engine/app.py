@@ -357,6 +357,11 @@ threading.Thread(target=_compute_anomalies, args=(None,), daemon=True).start()
 # GET /api/v1/ai/recommendations
 # ============================================================
 
+@lru_cache(maxsize=None)
+def _cached_recommendations(road_id):
+    return tuple(recommendation_engine.generate(road_id) or ())
+
+
 @app.get("/api/v1/ai/recommendations")
 def get_recommendations(
     road_id: str = Query(
@@ -369,7 +374,8 @@ def get_recommendations(
     the M2 trained model and historical traffic trends.
     """
 
-    recommendations = recommendation_engine.generate(road_id)
+    # Generated from the bundled history and the fixed model, so cache per road (DEF-M4-013).
+    recommendations = [dict(r) for r in _cached_recommendations(road_id)]
 
     if not recommendations:
         raise HTTPException(
