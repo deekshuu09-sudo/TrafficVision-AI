@@ -2362,8 +2362,6 @@ const NotificationManager = {
     },
 
     async _fetchFromAPI() {
-        // GET /alerts/my needs a token; before sign-in (e.g. Login.html) it can only 401 (DEF-M4-011).
-        if (!AuthManager.isAuthenticated()) return;
         try {
             const role = (AuthManager.getRole() || 'PUBLIC').toUpperCase();
             const raw = await alertsAPI.getMyAlerts(role);

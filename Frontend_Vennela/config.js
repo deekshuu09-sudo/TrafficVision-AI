@@ -12,8 +12,8 @@ window.__TRAFFICVISION_CONFIG__ = {
 
     // Optional discrete service overrides
     BASE_URL: "https://trafficvision-ai-i8e2.onrender.com/api/v1",
-    ANALYTICS_BASE: "https://trafficvision-ai-i8e2.onrender.com/analytics",  // mounted by the backend
-    AI_ENGINE_BASE: "https://trafficvision-ai-i8e2.onrender.com/ai-engine",  // mounted by the backend
+    ANALYTICS_BASE: "https://trafficvision-ai-i8e2.onrender.com",
+    AI_ENGINE_BASE: "https://trafficvision-ai-i8e2.onrender.com",
 
     // Request timeout in milliseconds
     TIMEOUT: 15000,
