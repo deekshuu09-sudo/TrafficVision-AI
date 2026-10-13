@@ -27,6 +27,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <!-- Tailwind CSS -->
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="config.js"></script>
 <script src="api.js"></script>
 <!-- Tailwind Config -->
 <script id="tailwind-config">
@@ -255,7 +256,7 @@
 </header>
 
 <!-- Main Content Canvas -->
-<main class="flex-1 w-full max-w-7xl mx-auto md:ml-64 p-4 sm:p-6 md:p-8 pb-24 md:pb-8 flex flex-col gap-stack-gap">
+<main class="flex-1 w-full max-w-7xl mx-auto md:ml-64 md:max-w-[min(80rem,calc(100%_-_16rem))] p-4 sm:p-6 md:p-8 pb-24 md:pb-8 flex flex-col gap-stack-gap">
 <!-- Search Bar Area -->
 <form class="w-full relative group" id="route-search-form" onsubmit="handleRouteSearch(event)">
 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

@@ -7,17 +7,16 @@
  */
 
 window.__TRAFFICVISION_CONFIG__ = {
-    // Leave null or set to custom live gateway URL (e.g. "https://api.trafficvision.ai")
-    // If null, api.js automatically defaults to origin or local development fallbacks.
+    // Production API Gateway URL (Render deployment)
     GATEWAY_URL: "https://trafficvision-ai-i8e2.onrender.com",
 
-    // Optional discrete service overrides (leave null to use unified Gateway)
-    BASE_URL: null,         // e.g. "https://api.trafficvision.ai/api/v1"
-    ANALYTICS_BASE: null,   // e.g. "https://api.trafficvision.ai/analytics"
-    AI_ENGINE_BASE: null,   // e.g. "https://api.trafficvision.ai/ai-engine"
+    // Optional discrete service overrides
+    BASE_URL: "https://trafficvision-ai-i8e2.onrender.com/api/v1",
+    ANALYTICS_BASE: "https://trafficvision-ai-i8e2.onrender.com/analytics",  // mounted by the backend
+    AI_ENGINE_BASE: "https://trafficvision-ai-i8e2.onrender.com/ai-engine",  // mounted by the backend
 
     // Request timeout in milliseconds
-    TIMEOUT: 10000,
+    TIMEOUT: 15000,
 
     // Environment descriptor
     ENVIRONMENT: "production",
