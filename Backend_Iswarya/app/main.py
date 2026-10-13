@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 # Import your database engine and declarative base for table auto-creation
 from app.database import engine
 from app.bootstrap import ensure_reference_data
+from app.subapps import mount_services, prepare_analytics_data
 from app.models.user import Base  # Adjust path if your models base is located elsewhere
 from app.models import alert  # noqa: F401 - <-- ADDED: Registers the Alert model for table creation
 
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
     # if they do not already exist in PostgreSQL.
     Base.metadata.create_all(bind=engine)
     ensure_reference_data(engine)
+    prepare_analytics_data()
     yield
     # Shutdown logic (if any) can go here
 
@@ -105,6 +107,12 @@ app.include_router(route_analysis.router, prefix="/api/v1/route", tags=["Route A
 
 # 5. Alert Service Routes (Milestone 3: Automated congestion and anomaly alerts)
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Alerts"])  # <-- ADDED
+
+
+# ==========================================
+# Analytics + AI Engine at the gateway paths the frontend calls
+# ==========================================
+mount_services(app)
 
 
 # ==========================================
