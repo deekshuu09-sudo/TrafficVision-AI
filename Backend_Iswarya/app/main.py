@@ -96,12 +96,17 @@ def version():
     return {"commit": os.getenv("RENDER_GIT_COMMIT")}
 
 
+# One Render service runs everything (default). COMBINED_SERVICE=false runs only the gateway,
+# for the separate-services layout in render.yaml (Analytics and AI Engine deployed on their own).
+COMBINED_SERVICE = os.getenv("COMBINED_SERVICE", "true").lower() != "false"
+
+
 @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 def root():
     """
-    The bare service URL opens the web app's login page.
+    The bare service URL opens the web app's login page (API docs on a gateway-only service).
     """
-    return RedirectResponse(url="/Login.html")
+    return RedirectResponse(url="/Login.html" if COMBINED_SERVICE else "/docs")
 
 
 # ==========================================
@@ -127,7 +132,8 @@ app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["Alerts"])  # <
 # ==========================================
 # Analytics + AI Engine at the gateway paths the frontend calls
 # ==========================================
-mount_services(app)
+if COMBINED_SERVICE:
+    mount_services(app)
 
 
 # ==========================================
@@ -135,5 +141,5 @@ mount_services(app)
 # ==========================================
 # Mounted last so every API, /docs and /health route above takes precedence.
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "Front-end"
-if FRONTEND_DIR.is_dir():
+if COMBINED_SERVICE and FRONTEND_DIR.is_dir():
     app.mount("/", StaticFiles(directory=FRONTEND_DIR), name="frontend")

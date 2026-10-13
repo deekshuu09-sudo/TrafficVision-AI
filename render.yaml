@@ -1,0 +1,77 @@
+# TrafficVision AI — separate-services deployment (Milestone 4, Intern 5).
+#
+# Render Dashboard → New → Blueprint → this repo (branch main). Render creates three web
+# services from the same tested image (Backend_Iswarya/Dockerfile), each with its own URL:
+#
+#   trafficvision-backend    API gateway: Auth, Monitoring, Prediction, Route, Alerts
+#   trafficvision-analytics  Analytics (Intern 2): trends, heatmap, reports, history
+#   trafficvision-ai         AI Engine (Intern 3): model-v1 predictions, anomalies,
+#                            recommendations
+#
+# The frontend is hosted separately on Vercel (Frontend_Vennela). The existing combined
+# service (trafficvision-ai-i8e2, COMBINED_SERVICE unset) keeps running unchanged.
+#
+# Render asks once for the `sync: false` values: DATABASE_URL = the production Postgres
+# External URL + ?sslmode=require (same database for all three).
+# If Render adds a suffix to a service name, update TRAFFIC_API_URL below to the real
+# backend URL.
+
+envVarGroups:
+  - name: trafficvision-separate
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://trafficvision-ai.vercel.app,https://trafficvision-ai-i8e2.onrender.com
+      - key: PORT
+        value: '8000'
+      - key: PYTHONUNBUFFERED
+        value: '1'
+
+services:
+  - name: trafficvision-backend
+    type: web
+    runtime: docker
+    plan: free
+    region: oregon
+    rootDir: Backend_Iswarya
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: trafficvision-separate
+      # Gateway only: Analytics and the AI Engine run as their own services below.
+      - key: COMBINED_SERVICE
+        value: 'false'
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: ALERT_SERVICE_KEY
+        generateValue: true
+
+  - name: trafficvision-analytics
+    type: web
+    runtime: docker
+    plan: free
+    region: oregon
+    rootDir: Backend_Iswarya
+    dockerfilePath: ./Dockerfile
+    dockerCommand: uvicorn main:app --app-dir services/analytics/src --host 0.0.0.0 --port 8000
+    healthCheckPath: /
+    envVars:
+      - fromGroup: trafficvision-separate
+      - key: ANALYTICS_CACHE_TTL
+        value: '60'
+
+  - name: trafficvision-ai
+    type: web
+    runtime: docker
+    plan: free
+    region: oregon
+    rootDir: Backend_Iswarya
+    dockerfilePath: ./Dockerfile
+    dockerCommand: uvicorn app:app --app-dir ai-engine --host 0.0.0.0 --port 8000
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: trafficvision-separate
+      # Live readings for the AI's live-prediction endpoints come from the backend service.
+      - key: TRAFFIC_API_URL
+        value: https://trafficvision-backend.onrender.com/api/v1/traffic/live
