@@ -8,6 +8,7 @@ overlap (redis_cache, congestion_calculator), so each one is imported in isolati
 A service that fails to load is skipped and logged; the core API keeps running.
 """
 
+import csv
 import importlib
 import importlib.util
 import logging
@@ -54,6 +55,42 @@ def _count(conn, table):
         return cur.fetchone()[0]
 
 
+def _load_live_readings(conn):
+    """Live readings from the synthetic dataset, as setup_production_db.py loads them."""
+    from psycopg2.extras import execute_batch
+
+    calculate_congestion = importlib.import_module("congestion_calculator").calculate_congestion
+    path = ANALYTICS_DIR / "data" / "traffic_monitoring_synthetic_dataset_with_density.csv"
+    with path.open(newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    readings = [
+        (
+            row["road_id"],
+            row["sensor_id"],
+            row["timestamp"],
+            int(row["vehicle_count"]),
+            float(row["avg_speed_kmph"]),
+            int(row["road_capacity"]),
+            float(row["traffic_density_vehicles_per_km"]),
+            # Same rule as the ingestion service (src/traffic_ingestion.py).
+            calculate_congestion(int(row["vehicle_count"]), int(row["road_capacity"])),
+            float(row["latitude"]),
+            float(row["longitude"]),
+        )
+        for row in rows
+    ]
+    with conn.cursor() as cur:
+        execute_batch(
+            cur,
+            "INSERT INTO traffic_readings (road_id, sensor_id, reading_timestamp, vehicle_count,"
+            " avg_speed_kmph, road_capacity, traffic_density_vehicles_per_km, congestion_level,"
+            " latitude, longitude) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            readings,
+            page_size=500,
+        )
+    logger.info("analytics data: loaded %d traffic_readings", len(readings))
+
+
 def prepare_analytics_data():
     """Create the analytics tables and load history + aggregates when they are empty."""
     if not os.getenv("DATABASE_URL", "").startswith(("postgres://", "postgresql")):
@@ -78,6 +115,10 @@ def prepare_analytics_data():
                     except Exception:
                         conn.rollback()
                         logger.exception("analytics schema: %s failed", path.name)
+
+                if not _count(conn, "traffic_readings"):
+                    _load_live_readings(conn)
+                conn.commit()
 
                 for table, loader in (
                     ("traffic_history", "load_historical_data"),
