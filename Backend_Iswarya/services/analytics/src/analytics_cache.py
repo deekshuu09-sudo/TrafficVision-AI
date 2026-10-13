@@ -17,6 +17,25 @@ REDIS_COOLDOWN_SECONDS = int(os.getenv("REDIS_COOLDOWN_SECONDS", "30"))
 
 _redis_down_until = 0.0
 
+# In-process fallback when Redis is unavailable (e.g. the free Render deployment has no
+# Redis): without it every analytics request recomputes from Postgres, which under 10
+# concurrent users gave a 3 s median and errors. Same TTL as Redis; per process.
+_memory = {}
+_memory_lock = threading.Lock()
+
+
+def _memory_get(key):
+    with _memory_lock:
+        entry = _memory.get(key)
+    if entry and entry[0] > time.monotonic():
+        return entry[1]
+    return None
+
+
+def _memory_set(key, data, ttl):
+    with _memory_lock:
+        _memory[key] = (time.monotonic() + ttl, data)
+
 
 def _client():
     return redis.from_url(
@@ -80,10 +99,10 @@ def _run_with_timeout(operation):
 
 
 def get_cached(prefix, values):
-    if not _redis_available():
-        return None
-
     key = _cache_key(prefix, values)
+
+    if not _redis_available():
+        return _memory_get(key)
 
     try:
         client = _client()
@@ -91,7 +110,7 @@ def get_cached(prefix, values):
         cached = _run_with_timeout(lambda: client.get(key))
 
         if cached is None:
-            return None
+            return _memory_get(key)
 
         _mark_redis_up()
 
@@ -100,14 +119,16 @@ def get_cached(prefix, values):
     except Exception:
         _mark_redis_down()
 
-        return None
+        return _memory_get(key)
 
 
 def set_cached(prefix, values, data, ttl=CACHE_TTL):
+    key = _cache_key(prefix, values)
+
+    _memory_set(key, data, ttl)
+
     if not _redis_available():
         return
-
-    key = _cache_key(prefix, values)
 
     try:
         client = _client()
