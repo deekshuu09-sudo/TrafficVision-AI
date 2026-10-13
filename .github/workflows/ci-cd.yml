@@ -98,13 +98,31 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Render's service root is Backend_Iswarya/, so it only redeploys when files there change.
+      - name: Does this push change the deployed service?
+        id: changes
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null && \
+             git diff --quiet "$BEFORE" "$GITHUB_SHA" -- "$BACKEND_DIR"; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "No changes under $BACKEND_DIR: Render keeps the current deploy; smoke-testing it."
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Trigger Render deploy (deploy hook if configured, else auto-deploy)
+        if: steps.changes.outputs.deploy == 'true'
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
           if [ -n "$HOOK" ]; then curl -fsS -X POST "$HOOK"; echo; else
             echo "No RENDER_DEPLOY_HOOK_URL secret: relying on Render auto-deploy of $GITHUB_SHA"; fi
       - name: Wait until the live service runs this commit
+        if: steps.changes.outputs.deploy == 'true'
         run: |
           for i in $(seq 1 60); do
             live=$(curl -fs "$LIVE_URL/version" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("commit") or "")' 2>/dev/null || true)
